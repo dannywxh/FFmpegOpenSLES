@@ -1,6 +1,9 @@
 #include <jni.h>
 #include <string>
 #include <android/log.h>
+#include "pcmdata.h"
+#include "WlQueue.h"
+
 extern "C" {
 //编码
 #include "libavcodec/avcodec.h"
@@ -15,6 +18,8 @@ extern "C" {
 #include <SLES/OpenSLES_Android.h>
 }
 #include "FFmpegMusic.h"
+
+
 #define LOGE(FORMAT,...) __android_log_print(ANDROID_LOG_ERROR,"LC",FORMAT,##__VA_ARGS__);
 
 SLObjectItf engineObject=NULL;//用SLObjectItf声明引擎接口对象
@@ -30,7 +35,7 @@ SLObjectItf audioplayer=NULL;//用SLObjectItf声明播放器接口对象
 SLPlayItf  slPlayItf=NULL;//播放器接口
 SLAndroidSimpleBufferQueueItf  slBufferQueueItf=NULL;//缓冲区队列接口
 
-
+WlQueue *wlQueue = NULL;
 size_t buffersize =0;
 void *buffer;
 //将pcm数据添加到缓冲区中
@@ -45,6 +50,18 @@ void getQueueCallBack(SLAndroidSimpleBufferQueueItf  slBufferQueueItf, void* con
     }
 }
 
+
+void pcmBufferCallBack2(SLAndroidSimpleBufferQueueItf bf, void * context)
+{
+
+    pcmdata* data = wlQueue->getPcmdata();
+    LOGE("getqueue  queue size is %d",  wlQueue->getPcmdataSize());
+    if (NULL != data) {
+        (*slBufferQueueItf)->Enqueue(slBufferQueueItf, data->getData(), data->getSize());
+    }
+
+
+}
 //创建引擎
 void createEngine(){
     slCreateEngine(&engineObject,0,NULL,0,NULL,NULL);//创建引擎
@@ -69,7 +86,9 @@ void createPlayer(){
     //初始化ffmpeg
     int rate;
     int channels;
-    createFFmpeg(&rate,&channels);
+
+    wlQueue=new WlQueue();
+    createFFmpeg(&rate,&channels,wlQueue);
     LOGE("RATE %d",rate);
     LOGE("channels %d",channels);
     /*
@@ -132,12 +151,12 @@ void createPlayer(){
     //注册缓冲区,通过缓冲区里面 的数据进行播放
     (*audioplayer)->GetInterface(audioplayer,SL_IID_BUFFERQUEUE,&slBufferQueueItf);
     //设置回调接口
-    (*slBufferQueueItf)->RegisterCallback(slBufferQueueItf,getQueueCallBack,NULL);
+    (*slBufferQueueItf)->RegisterCallback(slBufferQueueItf,pcmBufferCallBack2,NULL);
     //播放
     (*slPlayItf)->SetPlayState(slPlayItf,SL_PLAYSTATE_PLAYING);
 
     //开始播放
-    getQueueCallBack(slBufferQueueItf,NULL);
+    pcmBufferCallBack2(slBufferQueueItf,NULL);
 
 }
 //释放资源
@@ -159,14 +178,22 @@ void realseResource(){
         engineEngine=NULL;
     }
     realseFFmpeg();
+    if(wlQueue!=NULL)
+    {
+        free(wlQueue);
+        wlQueue=NULL;
+    }
 }
 
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_test_ffmpegopensles_MusicPlay_play(JNIEnv *env, jobject instance) {
-        createEngine();
-        createMixVolume();
-        createPlayer();
+
+    createEngine();
+    createMixVolume();
+
+    createPlayer();
+
 
 }
 

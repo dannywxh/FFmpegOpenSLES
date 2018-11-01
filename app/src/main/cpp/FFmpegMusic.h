@@ -19,10 +19,17 @@ extern "C" {
 #include <android/native_window_jni.h>
 #include <unistd.h>
 }
+
+#include "WlQueue.h"
+
 #define LOGE(FORMAT,...) __android_log_print(ANDROID_LOG_ERROR,"LC",FORMAT,##__VA_ARGS__);
 
-int createFFmpeg(int *rate,int *channel);
+int createFFmpeg(int *rate,int *channel,WlQueue* wlQueue);
 
 int getPcm(void **pcm,size_t *pcm_size);
 
 void realseFFmpeg();
+
+
+
+#endif

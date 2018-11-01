@@ -3,6 +3,7 @@
 //
 
 #include "FFmpegMusic.h"
+#include "WlQueue.h"
 
 AVFormatContext *pFormatCtx;
 AVCodecContext *pCodecCtx;
@@ -13,30 +14,70 @@ SwrContext *swrContext;
 uint8_t *out_buffer;
 int out_channer_nb;
 int audio_stream_idx=-1;
+
+pthread_t th_decode;
+
+//线程函数
+void *decodePCM(void *data)
+{
+    WlQueue* wlQueue=(WlQueue*)data;
+
+    int got_frame;
+    while (av_read_frame(pFormatCtx, packet) >= 0) {
+        if (packet->stream_index == audio_stream_idx) {
+//            解码  mp3   编码格式frame----pcm   frame
+            avcodec_decode_audio4(pCodecCtx, frame, &got_frame, packet);
+            if (got_frame) {
+                LOGE("解码");
+                /**
+                 * int swr_convert(struct SwrContext *s, uint8_t **out, int out_count,
+                                const uint8_t **in , int in_count);
+                 */
+                swr_convert(swrContext, &out_buffer, 44100 * 2, (const uint8_t **) frame->data, frame->nb_samples);
+//                缓冲区的大小
+
+                //处理不同的格式
+                int size;
+                if (pCodecCtx->sample_fmt == AV_SAMPLE_FMT_S16P) {
+                    //size = av_samples_get_buffer_size(pFrame->linesize, pCodecCtx->channels,pCodecCtx->frame_size,pCodecCtx->sample_fmt, 1);
+                    size = av_samples_get_buffer_size(NULL, out_channer_nb, frame->nb_samples,pCodecCtx->sample_fmt, 1);
+                }else {
+                    av_samples_get_buffer_size(&size, pCodecCtx->channels,pCodecCtx->frame_size,pCodecCtx->sample_fmt, 1);
+                }
+
+                pcmdata * pdata = new pcmdata((char *) out_buffer, size);
+                wlQueue->putPcmdata(pdata);
+                LOGE("putqueue :size is %d queue size is %d", size, wlQueue->getPcmdataSize());
+
+            }
+        }
+    }
+
+    return 0;
+}
+
 //opensl es调用 int * rate,int *channel
-int createFFmpeg(int *rate,int *channel){
+int createFFmpeg(int *rate,int *channel,WlQueue* wlQueue)
+{
     av_register_all();
     char *input = "/sdcard/input.mp3";
     pFormatCtx = avformat_alloc_context();
     LOGE("Lujng %s",input);
     LOGE("xxx %p",pFormatCtx);
-    int error;
+
     char buf[] = "";
     //打开视频地址并获取里面的内容(解封装)
-    if (error = avformat_open_input(&pFormatCtx, input, NULL, NULL) < 0) {
-        av_strerror(error, buf, 1024);
-        // LOGE("%s" ,inputPath)
-        LOGE("Couldn't open file %s: %d(%s)", input, error, buf);
+    if ( avformat_open_input(&pFormatCtx, input, NULL, NULL) != 0) {
+
         // LOGE("%d",error)
         LOGE("打开视频失败")
+        return -1;
     }
     //3.获取视频信息
     if(avformat_find_stream_info(pFormatCtx,NULL) < 0){
         LOGE("%s","获取视频信息失败");
         return -1;
     }
-
-
 
     int i=0;
     for (int i = 0; i < pFormatCtx->nb_streams; ++i) {
@@ -67,7 +108,7 @@ int createFFmpeg(int *rate,int *channel){
     swrContext = swr_alloc();
 
     int length=0;
-    int got_frame;
+
 //    44100*2
     out_buffer = (uint8_t *) av_malloc(44100 * 2);
     uint64_t  out_ch_layout=AV_CH_LAYOUT_STEREO;
@@ -86,8 +127,15 @@ int createFFmpeg(int *rate,int *channel){
     out_channer_nb = av_get_channel_layout_nb_channels(AV_CH_LAYOUT_STEREO);
     *rate = pCodecCtx->sample_rate;
     *channel = pCodecCtx->channels;
+
+    pthread_create(&th_decode, NULL, decodePCM, wlQueue);
+
     return 0;
 }
+
+
+
+
 //
 int getPcm(void **pcm,size_t *pcm_size){
     int frameCount=0;

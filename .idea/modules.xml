@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/FFmpegOpenslES.iml" filepath="$PROJECT_DIR$/FFmpegOpenslES.iml" />
+      <module fileurl="file://$PROJECT_DIR$/FFmpegOpenSLES.iml" filepath="$PROJECT_DIR$/FFmpegOpenSLES.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
     </modules>
   </component>

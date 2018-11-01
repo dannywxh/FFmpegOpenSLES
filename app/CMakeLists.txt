@@ -5,8 +5,10 @@ set(distribution_DIR ../../../../libs)
 add_library( native-lib
              SHARED
              src/main/cpp/native-lib.cpp
-                src/main/cpp/FFmpegMusic.cpp
-              )
+             src/main/cpp/FFmpegMusic.cpp
+             src/main/cpp/pcmdata.cpp
+             src/main/cpp/WlQueue.cpp
+            )
 add_library( avcodec-56
              SHARED
              IMPORTED)
